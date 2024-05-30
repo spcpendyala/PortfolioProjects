@@ -1,0 +1,172 @@
+/*
+Cleaning Data with SQL
+*/
+
+SELECT *
+FROM HousingData
+
+/* 
+Standardize date 
+*/
+
+SELECT SaleDateConverted, CONVERT(Date, SaleDate) as SaleDate
+FROM HousingData
+
+UPDATE HousingData
+SET SaleDate = CONVERT(Date, SaleDate)
+
+ALTER TABLE HousingData
+Add SaleDateConverted Date;
+
+UPDATE HousingData
+SET SaleDateConverted =  CONVERT(Date, SaleDate)
+
+/*
+
+Populate Property Address Data
+
+*/
+
+SELECT *
+FROM HousingData
+--Order by ParcelID
+Where PropertyAddress is NULL 
+
+SELECT a.PropertyAddress, a.ParcelID, b.PropertyAddress, b.ParcelID, 
+ISNULL(a.PropertyAddress, b.PropertyAddress) as PropertyAddress
+From HousingData a 
+JOIN HousingData b 
+on a.ParcelID = b.ParcelID
+AND a.[UniqueID] <> b.[UniqueID]
+Where a.PropertyAddress is NULL  
+
+UPDATE a
+SET PropertyAddress = ISNULL(a.PropertyAddress, b.PropertyAddress)
+From HousingData a 
+JOIN HousingData b 
+on a.ParcelID = b.ParcelID
+AND a.[UniqueID] <> b.[UniqueID]
+Where a.PropertyAddress is NULL 
+
+/*
+
+Breaking Address into individual columns (Street Name, City, State)
+
+*/
+
+SELECT PropertyAddress
+From HousingData
+
+SELECT SUBSTRING(PropertyAddress, 1, CHARINDEX(',', PropertyAddress) -1) as StreetName
+FROM HousingData
+
+SELECT SUBSTRING(PropertyAddress, 1, CHARINDEX(',', PropertyAddress) -1) as StreetName, 
+SUBSTRING(PropertyAddress, CHARINDEX(',', PropertyAddress)+1, LEN(PropertyAddress)) as City
+FROM HousingData
+
+
+ALTER TABLE HousingData
+Add PropertyStreetName nvarchar(255);
+
+UPDATE HousingData
+SET PropertyStreetName =  SUBSTRING(PropertyAddress, 1, CHARINDEX(',', PropertyAddress) -1)
+
+ALTER TABLE HousingData
+Add PropertyCity nvarchar(255);
+
+UPDATE HousingData
+SET PropertyCity =  SUBSTRING(PropertyAddress, CHARINDEX(',', PropertyAddress)+1, LEN(PropertyAddress))
+
+SELECT OwnerAddress
+FROM HousingData
+
+Select PARSENAME(REPLACE(OwnerAddress, ',','.'), 3) as StreetName, 
+PARSENAME(REPLACE(OwnerAddress, ',','.'), 2) as City, PARSENAME(REPLACE(OwnerAddress, ',','.'), 1) as State
+From HousingData
+
+ALTER TABLE HousingData
+Add OwnerStreetName nvarchar(255);
+
+UPDATE HousingData
+SET OwnerStreetName =  PARSENAME(REPLACE(OwnerAddress, ',','.'), 3)
+
+ALTER TABLE HousingData
+Add OwnerCity nvarchar(255);
+
+UPDATE HousingData
+SET OwnerCity =  PARSENAME(REPLACE(OwnerAddress, ',','.'), 2)
+
+ALTER TABLE HousingData
+Add OwnerState nvarchar(255);
+
+UPDATE HousingData
+SET OwnerState =  PARSENAME(REPLACE(OwnerAddress, ',','.'), 1)
+
+Select *
+From HousingData
+
+
+/*
+
+Replace Y and N to Yes and NO
+
+*/
+
+Select SoldAsVacant
+From HousingData
+
+Select Distinct(SoldAsVacant), Count(SoldAsVacant) as Count
+From HousingData
+Group by SoldAsVacant
+Order by 2
+
+SELECT SoldAsVacant,
+Case When SoldAsVacant = 'Y' then 'Yes'
+     When SoldAsvacant = 'N' Then 'No'
+     Else SoldAsVacant
+     END
+From HousingData
+
+UPDATE HousingData
+SET SoldAsVacant = Case When SoldAsVacant = 'Y' then 'Yes'
+     When SoldAsvacant = 'N' Then 'No'
+     Else SoldAsVacant
+     END
+
+
+/*
+
+Duplicates
+
+*/
+
+WITH RowNumCTE As (
+SELECT *, 
+       ROW_NUMBER() OVER(
+        PARTITION By ParcelID,
+                     PropertyAddress,
+                     SalePrice,
+                     SaleDate,
+                     LegalReference
+                     Order By 
+                     UniqueID) row_num
+       From HousingData
+
+)
+Select *
+FROM RowNumCTE 
+WHERE row_num >1
+Order By PropertyAddress
+
+
+/*
+
+Delete Unused Columns
+
+*/
+
+Select *
+From HousingData
+
+Alter TABLE HousingData
+DROP COLUMN PropertyAddress, SaleDate, OwnerAddress, TaxDistrict, StreetName, City
